@@ -28,4 +28,4 @@ export const TouchableView: React.FC<TouchableViewProps> = ({
     );
 };
 
-export default TouchableView; 
+export default TouchableView;
