@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Expo",
+  "compilerOptions": {
+    "target": "es2019",
+    "module": "esnext",
+    "lib": [
+      "es2019",
+      "dom"
+    ],
+    "jsx": "react-jsx",
+    "declaration": false,
+    "sourceMap": true,
+    "strict": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "exclude": [
+    "**/node_modules/**",
+    "node_modules"
+  ]
+}

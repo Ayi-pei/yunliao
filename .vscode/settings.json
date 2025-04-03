@@ -1,0 +1,33 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.disableAutomaticTypeAcquisition": false,
+  "typescript.validate.enable": true,
+  "typescript.tsserver.watchOptions": {
+    "watchDirectory": "useFsEvents",
+    "watchFile": "useFsEvents",
+    "excludeDirectories": [
+      "**/node_modules"
+    ]
+  },
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "typescript.tsserver.log": "off",
+  "javascript.validate.enable": true,
+  "javascript.format.enable": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "files.exclude": {
+    "**/node_modules": true
+  },
+  "typescript.validate.exclude": [
+    "**/node_modules/**",
+    "node_modules/**/*"
+  ],
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.tsserver.ignoredPaths": [
+    "**/node_modules/expo-secure-store/tsconfig.json"
+  ],
+  "typescript.disableAutomaticUnusedIdentifierChecks": true
+}
