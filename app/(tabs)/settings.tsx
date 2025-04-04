@@ -1,13 +1,14 @@
-import React, { useCallback } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Text, Platform, Switch } from 'react-native';
-import { router } from 'expo-router';
 import { SettingGroup, SettingItem } from '@/src/components/settings';
-import { Share, LogOut, Bell, Moon, User, Shield, HelpCircle, MessageSquare } from 'lucide-react-native';
-import { useTheme } from '@/src/contexts/ThemeContext';
-import { useAuth } from '@/src/contexts/AuthContext';
-import { useApp } from '@/src/contexts/AppContext';
-import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '@/src/constants';
+import { useApp } from '@/src/contexts/AppContext';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { useTheme } from '@/src/contexts/ThemeContext';
+import { Permission } from '@/src/types/auth';
+import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
+import { Bell, HelpCircle, LogOut, MessageSquare, Moon, Share, Shield, User, UserX } from 'lucide-react-native';
+import React, { useCallback } from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 // 定义设置项类型
 interface SettingItemType {
@@ -27,7 +28,11 @@ export default function Settings() {
   const { customers } = useApp();
 
   // 管理员权限检查
-  const isAdmin = agent?.permissions.includes('manage_agents') || false;
+  const isAdmin = agent?.permissions.includes(Permission.MANAGE_AGENTS) || false;
+
+  // 客服权限检查
+  const isServiceAgent = agent?.permissions.includes(Permission.SEND_MESSAGES) ||
+    agent?.permissions.includes(Permission.MANAGE_SETTINGS) || false;
 
   const handleLogout = () => {
     Alert.alert(
@@ -125,9 +130,51 @@ export default function Settings() {
             },
             type: 'navigate' as const,
           },
+          {
+            icon: <UserX size={22} color={COLORS.primary} />,
+            label: '黑名单管理',
+            onPress: () => {
+              router.push('../admin/blacklist');
+            },
+            type: 'navigate' as const,
+          },
         ],
       },
     ] : []),
+
+    // 客服功能组
+    ...(isServiceAgent && !isAdmin ? [
+      {
+        title: '客服工具',
+        items: [
+          {
+            icon: <MessageSquare size={22} color={COLORS.primary} />,
+            label: '客服控制台',
+            onPress: () => {
+              router.push('../admin/console');
+            },
+            type: 'navigate' as const,
+          },
+          ...(agent?.permissions.includes(Permission.MANAGE_SYSTEM) ? [{
+            icon: <UserX size={22} color={COLORS.primary} />,
+            label: '黑名单管理',
+            onPress: () => {
+              router.push('../admin/blacklist');
+            },
+            type: 'navigate' as const,
+          }] : []),
+          ...(agent?.permissions.includes(Permission.MANAGE_SETTINGS) ? [{
+            icon: <Share size={22} color={COLORS.primary} />,
+            label: '分享链接管理',
+            onPress: () => {
+              router.push('../admin/share-links');
+            },
+            type: 'navigate' as const,
+          }] : []),
+        ],
+      },
+    ] : []),
+
     // 其他功能组
     {
       title: '其他',
@@ -163,7 +210,7 @@ export default function Settings() {
         <View style={styles.header}>
           <Text style={styles.title}>设置</Text>
           <Text style={styles.subtitle}>
-            {agent?.name || '客服'} | 当前用户数: {customers.length}
+            {agent?.displayName || '客服'} | 当前用户数: {customers.length}
           </Text>
         </View>
 

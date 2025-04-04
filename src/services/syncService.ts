@@ -1,17 +1,17 @@
 import { webSocketManager } from './socketService';
 import { isOnline, registerNetworkStatusCallback } from './networkService';
-import { 
-  ConnectionStatus, 
-  Message, 
-  ChatSession, 
-  MessageStatus, 
+import {
+  ConnectionStatus,
+  Message,
+  ChatSession,
+  MessageStatus,
   SyncStatus,
-  generateId 
+  generateId
 } from '@/src/types';
-import { 
-  getMessages, 
-  getSessions, 
-  getOfflineQueue, 
+import {
+  getMessages,
+  getSessions,
+  getOfflineQueue,
   addToOfflineQueue,
   removeFromOfflineQueue,
   addMessage,
@@ -43,14 +43,26 @@ const syncObservers: SyncObserver[] = [];
  * 初始化同步服务
  */
 export const initSyncService = (): void => {
-  // 监听网络状态变化
-  registerNetworkStatusCallback(handleNetworkStatusChange);
-  
-  // 监听WebSocket消息
-  webSocketManager.registerMessageHandler(handleWebSocketMessage);
-  
-  // 监听WebSocket连接状态
-  webSocketManager.registerConnectionStateHandler(handleWebSocketConnection);
+  try {
+    // 监听网络状态变化
+    registerNetworkStatusCallback(handleNetworkStatusChange);
+
+    // 监听WebSocket消息
+    if (webSocketManager && typeof webSocketManager.registerMessageHandler === 'function') {
+      webSocketManager.registerMessageHandler(handleWebSocketMessage);
+    } else {
+      console.warn('无法注册WebSocket消息处理程序: webSocketManager未定义或缺少registerMessageHandler方法');
+    }
+
+    // 监听WebSocket连接状态
+    if (webSocketManager && typeof webSocketManager.registerConnectionStateHandler === 'function') {
+      webSocketManager.registerConnectionStateHandler(handleWebSocketConnection);
+    } else {
+      console.warn('无法注册WebSocket连接状态处理程序: webSocketManager未定义或缺少registerConnectionStateHandler方法');
+    }
+  } catch (error) {
+    console.error('初始化同步服务时出错:', error);
+  }
 };
 
 /**
@@ -60,10 +72,10 @@ export const initSyncService = (): void => {
  */
 export const registerSyncObserver = (observer: SyncObserver): () => void => {
   syncObservers.push(observer);
-  
+
   // 立即通知当前状态
   observer({ ...syncState });
-  
+
   // 返回取消注册的函数
   return () => {
     const index = syncObservers.indexOf(observer);
@@ -102,10 +114,10 @@ const handleWebSocketConnection = (isConnected: boolean): void => {
 const handleWebSocketMessage = async (message: any): Promise<void> => {
   // 只处理消息类型
   if (message.type !== 'message') return;
-  
+
   try {
     const data = message.payload;
-    
+
     if (data.type === 'new_message') {
       // 保存新消息到本地
       await addMessage(data.sessionId, data.message);
@@ -128,74 +140,81 @@ const handleWebSocketMessage = async (message: any): Promise<void> => {
  */
 export const syncOfflineData = async (): Promise<void> => {
   // 如果已经在同步或者网络断开，直接返回
-  if (syncState.isSyncing || !isOnline() || !webSocketManager.isConnected()) {
+  if (syncState.isSyncing || !await isOnline() || !webSocketManager.isConnected()) {
     return;
   }
-  
+
   // 更新同步状态
   updateSyncState({
     isSyncing: true,
     syncErrors: [],
   });
-  
+
   try {
     // 获取离线队列
     const offlineQueue = await getOfflineQueue();
-    
+
     if (offlineQueue.length === 0) {
       console.log('离线队列为空，无需同步');
-      
+
       // 在这里获取服务器最新数据
       await fetchLatestData();
-      
+
       // 更新同步状态
       updateSyncState({
         isSyncing: false,
         lastSyncTime: Date.now(),
         isInitialSyncComplete: true,
       });
-      
+
       return;
     }
-    
+
     console.log(`开始同步${offlineQueue.length}条离线消息`);
-    
+
     // 按照时间顺序处理离线消息
     const sortedQueue = [...offlineQueue].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
-    
+
     for (const offlineMessage of sortedQueue) {
       try {
         // 使用WebSocket发送消息
         webSocketManager.sendMessage({
           type: 'message',
           payload: {
-            type: 'new_message',
+            id: offlineMessage.id,
             sessionId: offlineMessage.sessionId,
-            message: {
-              ...offlineMessage,
-              isOffline: false,
-              syncStatus: 'synced',
-            }
+            content: offlineMessage.content,
+            contentType: offlineMessage.contentType,
+            senderType: offlineMessage.senderType,
+            timestamp: offlineMessage.timestamp,
+            status: 'sent',
+            isOffline: false,
+            syncStatus: 'synced',
+            ...(offlineMessage.attachments && { attachments: offlineMessage.attachments }),
+            ...(offlineMessage.metadata && { metadata: offlineMessage.metadata })
           },
           timestamp: Date.now(),
-          sender: 'agent',
+          metadata: {
+            sender: 'agent',
+            messageType: 'new_message'
+          }
         });
-        
+
         // 更新本地消息状态
         await updateMessage(offlineMessage.sessionId, offlineMessage.id, {
           isOffline: false,
           syncStatus: 'synced',
         });
-        
+
         // 从离线队列中移除
         await removeFromOfflineQueue(offlineMessage.id);
-        
+
         console.log(`成功同步离线消息: ${offlineMessage.id}`);
       } catch (error) {
         console.error(`同步离线消息失败: ${offlineMessage.id}`, error);
-        
+
         // 添加到同步错误中
         syncState.syncErrors.push({
           messageId: offlineMessage.id,
@@ -204,21 +223,21 @@ export const syncOfflineData = async (): Promise<void> => {
         });
       }
     }
-    
+
     // 获取服务器最新数据
     await fetchLatestData();
-    
+
     // 更新同步状态
     updateSyncState({
       isSyncing: false,
       lastSyncTime: Date.now(),
       isInitialSyncComplete: true,
     });
-    
+
     console.log('离线消息同步完成');
   } catch (error) {
     console.error('同步离线数据时出错:', error);
-    
+
     // 更新同步状态
     updateSyncState({
       isSyncing: false,
@@ -237,18 +256,17 @@ const fetchLatestData = async (): Promise<void> => {
   try {
     // 获取上次同步时间
     const lastSyncTime = syncState.lastSyncTime || 0;
-    
-    // 向服务器请求最新数据
+
+    // 向服务器请求最新数据（使用一个空的Message作为placeholder）
     webSocketManager.sendMessage({
-      type: 'message',
-      payload: {
-        type: 'fetch_latest',
-        timestamp: lastSyncTime,
-      },
+      type: 'status',  // 使用status类型表示这是一个特殊请求
       timestamp: Date.now(),
-      sender: 'agent',
+      metadata: {
+        messageType: 'fetch_latest',
+        lastSyncTime: lastSyncTime
+      }
     });
-    
+
     // 注：实际应用中，服务器会回复最新数据，
     // 然后在handleWebSocketMessage中处理
   } catch (error) {
@@ -281,27 +299,38 @@ export const sendMessage = async (
       timestamp: new Date().toISOString(),
       status: 'sending' as MessageStatus,
       attachments,
-      isOffline: !isOnline(),
-      syncStatus: isOnline() ? 'syncing' as SyncStatus : 'pending' as SyncStatus,
+      isOffline: !(await isOnline()),
+      syncStatus: (await isOnline()) ? 'syncing' as SyncStatus : 'pending' as SyncStatus,
     };
-    
+
     // 添加到本地存储
     await addMessage(sessionId, newMessage);
-    
+
     // 如果在线，直接发送
-    if (isOnline() && webSocketManager.isConnected()) {
+    if (await isOnline() && webSocketManager.isConnected()) {
       try {
         webSocketManager.sendMessage({
           type: 'message',
           payload: {
-            type: 'new_message',
-            sessionId,
-            message: newMessage,
+            id: newMessage.id,
+            sessionId: newMessage.sessionId,
+            content: newMessage.content,
+            contentType: newMessage.contentType,
+            senderType: newMessage.senderType,
+            timestamp: newMessage.timestamp,
+            status: 'sent',
+            isOffline: false,
+            syncStatus: 'synced',
+            ...(newMessage.attachments && { attachments: newMessage.attachments }),
+            ...(newMessage.metadata && { metadata: newMessage.metadata })
           },
           timestamp: Date.now(),
-          sender: 'agent',
+          metadata: {
+            sender: 'agent',
+            messageType: 'new_message'
+          }
         });
-        
+
         // 更新消息状态为已发送
         await updateMessage(sessionId, newMessage.id, {
           status: 'sent' as MessageStatus,
@@ -309,10 +338,10 @@ export const sendMessage = async (
         });
       } catch (error) {
         console.error('发送消息失败:', error);
-        
+
         // 发送失败，添加到离线队列
         await addToOfflineQueue(newMessage);
-        
+
         // 更新消息状态
         await updateMessage(sessionId, newMessage.id, {
           status: 'failed' as MessageStatus,
@@ -324,7 +353,7 @@ export const sendMessage = async (
       // 离线状态，添加到离线队列
       await addToOfflineQueue(newMessage);
     }
-    
+
     return newMessage;
   } catch (error) {
     console.error('处理消息发送时出错:', error);
@@ -339,7 +368,7 @@ export const sendMessage = async (
 const updateSyncState = (updates: Partial<SyncState>): void => {
   // 更新状态
   Object.assign(syncState, updates);
-  
+
   // 通知所有观察者
   syncObservers.forEach(observer => {
     try {
@@ -361,64 +390,70 @@ export const resendMessage = async (
   try {
     // 获取会话的所有消息
     const messages = await getMessages(sessionId);
-    
+
     // 查找指定消息
     const message = messages.find(m => m.id === messageId);
-    
+
     if (!message) {
       throw new Error(`消息不存在: ${messageId}`);
     }
-    
+
     // 如果不是失败或待处理状态，则无需重发
     if (message.status !== 'failed' && message.syncStatus !== 'pending') {
       return false;
     }
-    
+
     // 更新消息状态
     await updateMessage(sessionId, messageId, {
       status: 'sending',
       syncStatus: 'syncing',
     });
-    
+
     // 如果在线，尝试重新发送
-    if (isOnline() && webSocketManager.isConnected()) {
+    if (await isOnline() && webSocketManager.isConnected()) {
       try {
         webSocketManager.sendMessage({
           type: 'message',
           payload: {
-            type: 'new_message',
-            sessionId,
-            message: {
-              ...message,
-              status: 'sent',
-              syncStatus: 'synced',
-              isOffline: false,
-            },
+            id: message.id,
+            sessionId: message.sessionId,
+            content: message.content,
+            contentType: message.contentType,
+            senderType: message.senderType,
+            timestamp: message.timestamp,
+            status: 'sent',
+            isOffline: false,
+            syncStatus: 'synced',
+            ...(message.attachments && { attachments: message.attachments }),
+            ...(message.metadata && { metadata: message.metadata })
           },
           timestamp: Date.now(),
-          sender: 'agent',
+          metadata: {
+            sender: 'agent',
+            messageType: 'new_message'
+          }
         });
-        
+
         // 更新消息状态
         await updateMessage(sessionId, messageId, {
           status: 'sent',
           syncStatus: 'synced',
           isOffline: false,
         });
-        
+
         // 如果在离线队列中，移除
         await removeFromOfflineQueue(messageId);
-        
+
         return true;
       } catch (error) {
         console.error('重发消息失败:', error);
-        
+
         // 更新消息状态
         await updateMessage(sessionId, messageId, {
           status: 'failed',
           syncStatus: 'pending',
         });
-        
+
         return false;
       }
     } else {
@@ -426,14 +461,14 @@ export const resendMessage = async (
       if (message.syncStatus !== 'pending') {
         await addToOfflineQueue(message);
       }
-      
+
       // 更新消息状态
       await updateMessage(sessionId, messageId, {
         status: 'pending',
         syncStatus: 'pending',
         isOffline: true,
       });
-      
+
       return false;
     }
   } catch (error) {

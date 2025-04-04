@@ -21,18 +21,18 @@ export default function ChatListScreen() {
     if (statusFilter && session.status !== statusFilter) {
       return false;
     }
-    
+
     // 搜索过滤 - 根据客户名称或ID搜索
     if (searchQuery) {
       const customer = customers.find(c => c.id === session.customerId);
       if (!customer) return false;
-      
+
       const nameMatch = customer.name.toLowerCase().includes(searchQuery.toLowerCase());
       const idMatch = session.id.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       return nameMatch || idMatch;
     }
-    
+
     return true;
   });
 
@@ -93,12 +93,12 @@ export default function ChatListScreen() {
           <View style={styles.sessionHeader}>
             <Text style={styles.customerName}>{customer.name}</Text>
             <Text style={styles.timestamp}>
-              {item.lastMessageTime ? 
-                formatDistanceToNow(new Date(item.lastMessageTime), { addSuffix: true }) : 
+              {item.lastMessageTime ?
+                formatDistanceToNow(new Date(item.lastMessageTime), { addSuffix: true }) :
                 formatDistanceToNow(new Date(item.startTime), { addSuffix: true })}
             </Text>
           </View>
-          
+
           <View style={styles.sessionMeta}>
             <View style={styles.statusContainer}>
               <Circle
@@ -108,7 +108,7 @@ export default function ChatListScreen() {
               />
               <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
             </View>
-            
+
             {item.unreadCount > 0 && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadCount}>{item.unreadCount}</Text>
@@ -176,7 +176,7 @@ export default function ChatListScreen() {
         {renderFilterButton(ChatStatus.ACTIVE, '进行中')}
         {renderFilterButton(ChatStatus.PENDING, '待处理')}
         {renderFilterButton(ChatStatus.RESOLVED, '已解决')}
-        
+
         <TouchableOpacity style={styles.moreFiltersButton}>
           <Filter size={16} color="#8E8E93" />
         </TouchableOpacity>
@@ -194,7 +194,7 @@ export default function ChatListScreen() {
         <FlatList
           data={filteredSessions}
           renderItem={renderSessionItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: ChatSession) => item.id}
           contentContainerStyle={styles.sessionsList}
           refreshControl={
             <RefreshControl

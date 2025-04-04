@@ -29,5 +29,30 @@
   "typescript.tsserver.ignoredPaths": [
     "**/node_modules/expo-secure-store/tsconfig.json"
   ],
-  "typescript.disableAutomaticUnusedIdentifierChecks": true
+  "typescript.disableAutomaticUnusedIdentifierChecks": true,
+  "explorer.sortOrder": "type",
+  "extensions.closeExtensionDetailsOnViewChange": true,
+  "terminal.integrated.accessibleViewFocusOnCommandExecution": true,
+  "problems.showCurrentInStatus": true,
+  "merge-conflict.autoNavigateNextConflict.enabled": true,
+  "git.enableSmartCommit": false,
+  "git.mergeEditor": true,
+  "cursor.composer.shouldAllowCustomModes": true,
+  "cursor.general.gitGraphIndexing": "enabled",
+  "editor.accessibilityPageSize": 500,
+  "editor.experimental.treeSitterTelemetry": true,
+  "editor.experimentalEditContextEnabled": true,
+  "editor.lightbulb.enabled": "onCode",
+  "editor.linkedEditing": true,
+  "editor.codeActions.triggerOnFocusChange": true,
+  "editor.defaultFormatter": "anysphere.cursor-shadow-workspace",
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  }
 }

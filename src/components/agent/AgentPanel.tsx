@@ -235,7 +235,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({
         <FlatList
           data={filteredCustomers}
           renderItem={renderCustomerItem}
-          keyExtractor={item => item.id}
+          keyExtractor={(item: Customer) => item.id}
           showsVerticalScrollIndicator={false}
           style={styles.customersList}
         />

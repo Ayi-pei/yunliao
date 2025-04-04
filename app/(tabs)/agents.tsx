@@ -96,7 +96,7 @@ export default function AgentsScreen() {
       <FlatList
         data={agents}
         renderItem={renderAgentItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: Agent) => item.id}
         contentContainerStyle={styles.listContent}
       />
     </View>

@@ -1,69 +1,99 @@
 // @ts-ignore
+import { NavigationItem } from '@/src/components/navigation/PermissionBasedNavigation';
+import { COLORS } from '@/src/constants';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { Permission } from '@/src/types/auth';
 import { Tabs } from 'expo-router';
-import { MessageSquare, Users, Settings } from 'lucide-react-native';
-import { StyleSheet } from 'react-native';
-import TouchableView from '@/src/components/common/TouchableView';
+import { MessageSquare, Settings, User, Users } from 'lucide-react-native';
+import React from 'react';
+import { Platform } from 'react-native';
+
+const tabItems: NavigationItem[] = [
+  {
+    key: 'index',
+    title: '对话',
+    icon: <MessageSquare size={22} color={COLORS.primary} />,
+    path: '/(tabs)/index',
+    requiredPermissions: [Permission.SEND_MESSAGES],
+  },
+  {
+    key: 'team',
+    title: '客户',
+    icon: <Users size={22} color={COLORS.primary} />,
+    path: '/(tabs)/team',
+    requiredPermissions: [Permission.VIEW_ANALYTICS],
+  },
+  {
+    key: 'agent',
+    title: '个人',
+    icon: <User size={22} color={COLORS.primary} />,
+    path: '/(tabs)/agent',
+  },
+  {
+    key: 'settings',
+    title: '设置',
+    icon: <Settings size={22} color={COLORS.primary} />,
+    path: '/(tabs)/settings',
+  },
+];
 
 export default function TabLayout() {
-  const styles = StyleSheet.create({
-    tabBarIcon: {
-      pointerEvents: 'none',
-    },
-  });
+  const { agent } = useAuth();
+
+  // 根据权限过滤Tab项
+  const getTabItems = () => {
+    return tabItems.filter(item => {
+      if (!item.requiredPermissions) return true;
+
+      if (!agent) return false;
+
+      return item.requiredPermissions.every(permission =>
+        agent.permissions.includes(permission)
+      );
+    });
+  };
+
+  // 获取可见的Tab项
+  const visibleTabs = getTabItems();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.gray,
         tabBarStyle: {
-          borderTopWidth: 1,
-          borderTopColor: '#E5E5EA',
-          backgroundColor: '#FFFFFF',
+          backgroundColor: COLORS.white,
+          ...Platform.select({
+            web: {
+              boxShadow: '0px -2px 10px rgba(0, 0, 0, 0.05)',
+            },
+            default: {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 3,
+              elevation: 5,
+            },
+          }),
         },
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
+        tabBarLabelStyle: {
+          fontSize: 12,
+          marginBottom: 4,
         },
-        headerTitleStyle: {
-          fontFamily: 'Inter_600SemiBold',
-        },
-      }}>
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: '会话',
-          headerTitle: '当前会话',
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <TouchableView style={styles.tabBarIcon}>
-              <MessageSquare size={size} color={color} />
-            </TouchableView>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="agents"
-        options={{
-          title: '客服',
-          headerTitle: '客服人员',
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <TouchableView style={styles.tabBarIcon}>
-              <Users size={size} color={color} />
-            </TouchableView>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: '设置',
-          headerTitle: '系统设置',
-          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-            <TouchableView style={styles.tabBarIcon}>
-              <Settings size={size} color={color} />
-            </TouchableView>
-          ),
-        }}
-      />
+        headerShown: false,
+      }}
+    >
+      {visibleTabs.map((tab) => (
+        <Tabs.Screen
+          key={tab.key}
+          name={tab.key}
+          options={{
+            title: tab.title,
+            tabBarIcon: ({ color }: { color: string }) =>
+              React.cloneElement(tab.icon as React.ReactElement, { color }),
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

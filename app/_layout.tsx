@@ -13,6 +13,7 @@ import { ThemeProvider } from '../src/contexts/ThemeContext';
 import AuthGuard from '../src/components/auth/AuthGuard';
 import { applyNavigationPatches } from '../src/utils/navigationPatch';
 import { applyErrorFilters } from '../src/utils/errorFilter';
+import 'react-native-gesture-handler';
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -49,7 +50,7 @@ export default function RootLayout() {
                   animation: 'slide_from_right',
                 }}
               >
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="admin"

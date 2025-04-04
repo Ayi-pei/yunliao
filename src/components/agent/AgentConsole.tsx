@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Alert, Switch, Platform } from 'react-native';
 import { User, MessageSquare, Shield, Link2, Clock, Users, UserX, Paperclip, Send, Smile, List } from 'lucide-react-native';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useApp } from '@/src/contexts/AppContext';
 import { AgentStatus, Message } from '@/src/types';
 import TouchableView from '@/src/components/common/TouchableView';
+import * as Clipboard from 'expo-clipboard';
 
 interface EmojiData {
     emoji: string;
@@ -272,8 +273,14 @@ const AgentConsole = ({ className }: AgentConsoleProps) => {
     };
 
     // 复制链接
-    const handleCopyLink = (url: string) => {
-        Alert.alert('成功', '链接已复制到剪贴板');
+    const handleCopyLink = async (url: string) => {
+        try {
+            await Clipboard.setStringAsync(url);
+            Alert.alert('成功', '链接已复制到剪贴板');
+        } catch (error) {
+            console.error('复制链接失败:', error);
+            Alert.alert('错误', '复制链接失败，请重试');
+        }
     };
 
     // 停用链接
@@ -535,6 +542,19 @@ const AgentConsole = ({ className }: AgentConsoleProps) => {
                         onChangeText={setMessageText}
                         placeholder="输入消息..."
                         multiline
+                        {...(Platform.OS === 'web' ? {
+                            autoComplete: 'off',
+                            spellCheck: false,
+                            autoCorrect: false,
+                            // @ts-ignore
+                            onPaste: (e) => {
+                                // 允许Web版粘贴
+                                const pastedText = e.nativeEvent.clipboardData?.getData('text');
+                                if (pastedText) {
+                                    setMessageText(messageText + pastedText);
+                                }
+                            }
+                        } : {})}
                     />
 
                     <TouchableOpacity

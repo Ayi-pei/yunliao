@@ -43,7 +43,7 @@ export const isTokenValid = (token: string): boolean => {
   try {
     const decoded = jwtDecode<{ exp: number }>(token);
     const currentTime = Date.now() / 1000;
-    
+
     return decoded.exp > currentTime;
   } catch (error) {
     console.error('验证令牌时出错:', error);
@@ -54,18 +54,18 @@ export const isTokenValid = (token: string): boolean => {
 // 获取当前用户信息
 export const getCurrentUser = async (): Promise<AuthData | null> => {
   const token = await getAuthToken();
-  
+
   if (!token || !isTokenValid(token)) {
     return null;
   }
-  
+
   try {
     const decoded = jwtDecode<{
       userId: string;
       userType: 'agent' | 'customer' | 'admin';
       exp: number;
     }>(token);
-    
+
     return {
       token,
       userId: decoded.userId,
@@ -80,26 +80,26 @@ export const getCurrentUser = async (): Promise<AuthData | null> => {
 
 // 登录函数
 export const login = async (
-  email: string, 
+  email: string,
   password: string
 ): Promise<AuthData> => {
   try {
-    const response = await fetch(`${API_CONFIG.API_URL}/auth/login`, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ email, password }),
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || '登录失败');
     }
-    
+
     const data = await response.json();
     await saveAuthToken(data.token);
-    
+
     return {
       token: data.token,
       userId: data.userId,

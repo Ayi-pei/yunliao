@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Alert, Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Modal from 'react-native-modal';
 // @ts-ignore
-import { useRouter } from 'expo-router';
-import { Users, UserPlus, Edit, Trash2, ArrowLeft, Shield } from 'lucide-react-native';
+import { COLORS } from '@/src/constants';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { AgentData, AgentStatus } from '@/src/types';
+import { Permission } from '@/src/types/auth';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Edit, Plus, Trash2, X } from 'lucide-react-native';
 
 // 模拟团队成员数据
 const mockTeamMembers: AgentData[] = [
@@ -37,27 +40,21 @@ const mockTeamMembers: AgentData[] = [
     },
 ];
 
+// 创建一个映射用于标识培训中的客服
+const traineeAgents = new Set(['agent_003']);
+
 export default function TeamManagementScreen() {
     const router = useRouter();
     const { agent } = useAuth();
     const [teamMembers, setTeamMembers] = useState<AgentData[]>(mockTeamMembers);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editMemberId, setEditMemberId] = useState<string | null>(null);
-    const [newMember, setNewMember] = useState({
-        name: '',
-        email: '',
-        permissions: {
-            chat: true,
-            view_customers: true,
-            view_analytics: false,
-            manage_agents: false,
-            system_config: false,
-            assign_chats: false,
-        },
-    });
+    const [newMemberEmail, setNewMemberEmail] = useState('');
+    const [newMemberName, setNewMemberName] = useState('');
+    const [isTrainee, setIsTrainee] = useState(false);
 
     // 检查当前用户是否有管理员权限
-    const isAdmin = agent?.permissions.includes('manage_agents') || false;
+    const isAdmin = agent?.permissions.includes(Permission.MANAGE_AGENTS) || false;
 
     useEffect(() => {
         // 如果用户没有管理权限，返回设置页面
@@ -69,65 +66,71 @@ export default function TeamManagementScreen() {
 
     // 添加新成员
     const handleAddMember = () => {
-        if (!newMember.name || !newMember.email) {
-            Alert.alert('信息不完整', '请填写客服姓名和邮箱');
+        if (!newMemberEmail.trim() || !newMemberName.trim()) {
+            Alert.alert('输入错误', '请输入邮箱和姓名');
             return;
         }
 
-        const permissions = Object.entries(newMember.permissions)
-            .filter(([_, value]) => value)
-            .map(([key]) => key);
+        // 验证邮箱格式
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(newMemberEmail)) {
+            Alert.alert('输入错误', '请输入有效的邮箱地址');
+            return;
+        }
 
-        const newAgentId = `agent_${Math.floor(Math.random() * 1000)}`;
-
-        const memberToAdd: AgentData = {
-            id: newAgentId,
-            name: newMember.name,
-            email: newMember.email,
-            status: AgentStatus.OFFLINE,
+        const newMember: AgentData = {
+            id: `agent_${Date.now()}`,
+            name: newMemberName,
+            email: newMemberEmail,
+            avatar: undefined, // 改为undefined而不是null
+            status: AgentStatus.OFFLINE, // 使用AgentStatus枚举
+            permissions: isTrainee
+                ? ['send_messages', 'use_quick_replies']
+                : ['send_messages', 'upload_files', 'use_quick_replies', 'close_sessions'],
             activeChats: 0,
-            totalResolved: 0,
-            permissions: permissions,
+            totalResolved: 0
         };
 
-        setTeamMembers([...teamMembers, memberToAdd]);
-        setNewMember({
-            name: '',
-            email: '',
-            permissions: {
-                chat: true,
-                view_customers: true,
-                view_analytics: false,
-                manage_agents: false,
-                system_config: false,
-                assign_chats: false,
-            },
-        });
+        const updatedMembers = [...teamMembers, newMember];
+        setTeamMembers(updatedMembers);
+
+        // 如果是培训中的客服，添加到traineeAgents集合中
+        if (isTrainee) {
+            traineeAgents.add(newMember.id);
+        }
+
+        setNewMemberEmail('');
+        setNewMemberName('');
+        setIsTrainee(false);
         setShowAddForm(false);
+
+        Alert.alert('成功', `已添加${isTrainee ? '培训中客服' : '客服'}: ${newMemberName}`);
     };
 
     // 更新成员权限
     const updateMemberPermission = (memberId: string, permission: string, value: boolean) => {
-        setTeamMembers(teamMembers.map(member => {
-            if (member.id === memberId) {
-                const updatedPermissions = value
-                    ? [...member.permissions, permission]
-                    : member.permissions.filter(p => p !== permission);
-
-                return {
-                    ...member,
-                    permissions: updatedPermissions
-                };
-            }
-            return member;
-        }));
+        setTeamMembers(members =>
+            members.map(member => {
+                if (member.id === memberId) {
+                    const permissions = [...member.permissions];
+                    if (value && !permissions.includes(permission)) {
+                        permissions.push(permission);
+                    } else if (!value && permissions.includes(permission)) {
+                        const index = permissions.indexOf(permission);
+                        permissions.splice(index, 1);
+                    }
+                    return { ...member, permissions };
+                }
+                return member;
+            })
+        );
     };
 
     // 删除成员
     const deleteMember = (memberId: string) => {
         Alert.alert(
             '确认删除',
-            '确定要删除此团队成员吗？此操作不可撤销。',
+            '确定要删除此成员吗？此操作不可撤销。',
             [
                 {
                     text: '取消',
@@ -135,16 +138,26 @@ export default function TeamManagementScreen() {
                 },
                 {
                     text: '删除',
+                    style: 'destructive',
                     onPress: () => {
-                        setTeamMembers(teamMembers.filter(member => member.id !== memberId));
-                    },
-                    style: 'destructive'
+                        setTeamMembers(members => members.filter(m => m.id !== memberId));
+                        if (editMemberId === memberId) {
+                            setEditMemberId(null);
+                        }
+                        // 从培训集合中移除
+                        traineeAgents.delete(memberId);
+                    }
                 }
             ]
         );
     };
 
-    // 渲染权限设置组件
+    // 检查是否为培训中的客服
+    const isTraineeAgent = (agentId: string): boolean => {
+        return traineeAgents.has(agentId);
+    };
+
+    // 渲染权限开关
     const renderPermissionSwitch = (
         label: string,
         permission: string,
@@ -157,15 +170,17 @@ export default function TeamManagementScreen() {
             <Switch
                 value={checked}
                 onValueChange={onChange}
-                trackColor={{ false: '#E5E5EA', true: '#5856D6' }}
+                trackColor={{ false: COLORS.gray5, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+                disabled={!memberId}
             />
         </View>
     );
 
-    // 获取成员是否有某权限
+    // 检查成员是否有指定权限
     const hasPermission = (memberId: string, permission: string): boolean => {
         const member = teamMembers.find(m => m.id === memberId);
-        return member?.permissions.includes(permission) || false;
+        return member ? member.permissions.includes(permission) : false;
     };
 
     if (!isAdmin) {
@@ -187,133 +202,77 @@ export default function TeamManagementScreen() {
                     style={styles.addButton}
                     onPress={() => setShowAddForm(true)}
                 >
-                    <UserPlus size={20} color="#FFFFFF" />
+                    <Plus size={20} color={COLORS.white} />
                     <Text style={styles.addButtonText}>添加新成员</Text>
                 </TouchableOpacity>
             )}
 
             {/* 添加成员表单 */}
-            {showAddForm && (
-                <View style={styles.formContainer}>
-                    <Text style={styles.formTitle}>添加新团队成员</Text>
-
-                    <Text style={styles.inputLabel}>客服姓名</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={newMember.name}
-                        onChangeText={(text) => setNewMember({ ...newMember, name: text })}
-                        placeholder="输入客服姓名"
-                    />
-
-                    <Text style={styles.inputLabel}>邮箱</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={newMember.email}
-                        onChangeText={(text) => setNewMember({ ...newMember, email: text })}
-                        placeholder="输入邮箱地址"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                    />
-
-                    <Text style={styles.sectionTitle}>权限设置</Text>
-
-                    {renderPermissionSwitch(
-                        '聊天功能',
-                        'chat',
-                        null,
-                        newMember.permissions.chat,
-                        (value) => setNewMember({
-                            ...newMember,
-                            permissions: { ...newMember.permissions, chat: value }
-                        })
-                    )}
-
-                    {renderPermissionSwitch(
-                        '查看客户',
-                        'view_customers',
-                        null,
-                        newMember.permissions.view_customers,
-                        (value) => setNewMember({
-                            ...newMember,
-                            permissions: { ...newMember.permissions, view_customers: value }
-                        })
-                    )}
-
-                    {renderPermissionSwitch(
-                        '查看分析',
-                        'view_analytics',
-                        null,
-                        newMember.permissions.view_analytics,
-                        (value) => setNewMember({
-                            ...newMember,
-                            permissions: { ...newMember.permissions, view_analytics: value }
-                        })
-                    )}
-
-                    {renderPermissionSwitch(
-                        '管理团队',
-                        'manage_agents',
-                        null,
-                        newMember.permissions.manage_agents,
-                        (value) => setNewMember({
-                            ...newMember,
-                            permissions: { ...newMember.permissions, manage_agents: value }
-                        })
-                    )}
-
-                    {renderPermissionSwitch(
-                        '系统配置',
-                        'system_config',
-                        null,
-                        newMember.permissions.system_config,
-                        (value) => setNewMember({
-                            ...newMember,
-                            permissions: { ...newMember.permissions, system_config: value }
-                        })
-                    )}
-
-                    {renderPermissionSwitch(
-                        '分配会话',
-                        'assign_chats',
-                        null,
-                        newMember.permissions.assign_chats,
-                        (value) => setNewMember({
-                            ...newMember,
-                            permissions: { ...newMember.permissions, assign_chats: value }
-                        })
-                    )}
-
-                    <View style={styles.formActions}>
+            <Modal
+                isVisible={showAddForm}
+                onBackdropPress={() => setShowAddForm(false)}
+                onBackButtonPress={() => setShowAddForm(false)}
+                animationIn="slideInUp"
+                animationOut="slideOutDown"
+                style={styles.modalContainer}
+            >
+                <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>添加新成员</Text>
                         <TouchableOpacity
-                            style={[styles.actionButton, styles.cancelButton]}
-                            onPress={() => {
-                                setShowAddForm(false);
-                                setNewMember({
-                                    name: '',
-                                    email: '',
-                                    permissions: {
-                                        chat: true,
-                                        view_customers: true,
-                                        view_analytics: false,
-                                        manage_agents: false,
-                                        system_config: false,
-                                        assign_chats: false,
-                                    },
-                                });
-                            }}
+                            onPress={() => setShowAddForm(false)}
+                            style={styles.closeButton}
                         >
-                            <Text style={styles.cancelButtonText}>取消</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.actionButton, styles.saveButton]}
-                            onPress={handleAddMember}
-                        >
-                            <Text style={styles.saveButtonText}>添加</Text>
+                            <X size={20} color={COLORS.gray} />
                         </TouchableOpacity>
                     </View>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.inputLabel}>姓名</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="输入姓名"
+                            value={newMemberName}
+                            onChangeText={setNewMemberName}
+                        />
+                    </View>
+
+                    <View style={styles.formGroup}>
+                        <Text style={styles.inputLabel}>邮箱</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="输入邮箱"
+                            value={newMemberEmail}
+                            onChangeText={setNewMemberEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    <View style={styles.formGroup}>
+                        <View style={styles.switchContainer}>
+                            <Text style={styles.switchLabel}>培训中客服</Text>
+                            <Switch
+                                value={isTrainee}
+                                onValueChange={setIsTrainee}
+                                trackColor={{ false: COLORS.gray5, true: COLORS.primary }}
+                                thumbColor={COLORS.white}
+                            />
+                        </View>
+                        <Text style={styles.switchDescription}>
+                            培训中客服只有基本的消息发送权限
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[styles.submitButton, (!newMemberEmail.trim() || !newMemberName.trim()) && styles.disabledButton]}
+                        onPress={handleAddMember}
+                        disabled={!newMemberEmail.trim() || !newMemberName.trim()}
+                    >
+                        <Text style={styles.submitButtonText}>添加</Text>
+                    </TouchableOpacity>
                 </View>
-            )}
+            </Modal>
 
             {/* 团队成员列表 */}
             <Text style={styles.sectionTitle}>团队成员 ({teamMembers.length})</Text>
@@ -349,51 +308,43 @@ export default function TeamManagementScreen() {
                             <Text style={styles.permissionsTitle}>权限管理</Text>
 
                             {renderPermissionSwitch(
-                                '聊天功能',
-                                'chat',
+                                '发送消息',
+                                'send_messages',
                                 member.id,
-                                hasPermission(member.id, 'chat'),
-                                (value) => updateMemberPermission(member.id, 'chat', value)
+                                hasPermission(member.id, 'send_messages'),
+                                (value) => updateMemberPermission(member.id, 'send_messages', value)
                             )}
 
                             {renderPermissionSwitch(
-                                '查看客户',
-                                'view_customers',
+                                '上传文件',
+                                'upload_files',
                                 member.id,
-                                hasPermission(member.id, 'view_customers'),
-                                (value) => updateMemberPermission(member.id, 'view_customers', value)
+                                hasPermission(member.id, 'upload_files'),
+                                (value) => updateMemberPermission(member.id, 'upload_files', value)
                             )}
 
                             {renderPermissionSwitch(
-                                '查看分析',
+                                '使用快捷回复',
+                                'use_quick_replies',
+                                member.id,
+                                hasPermission(member.id, 'use_quick_replies'),
+                                (value) => updateMemberPermission(member.id, 'use_quick_replies', value)
+                            )}
+
+                            {renderPermissionSwitch(
+                                '关闭会话',
+                                'close_sessions',
+                                member.id,
+                                hasPermission(member.id, 'close_sessions'),
+                                (value) => updateMemberPermission(member.id, 'close_sessions', value)
+                            )}
+
+                            {!isTraineeAgent(member.id) && renderPermissionSwitch(
+                                '查看分析数据',
                                 'view_analytics',
                                 member.id,
                                 hasPermission(member.id, 'view_analytics'),
                                 (value) => updateMemberPermission(member.id, 'view_analytics', value)
-                            )}
-
-                            {renderPermissionSwitch(
-                                '管理团队',
-                                'manage_agents',
-                                member.id,
-                                hasPermission(member.id, 'manage_agents'),
-                                (value) => updateMemberPermission(member.id, 'manage_agents', value)
-                            )}
-
-                            {renderPermissionSwitch(
-                                '系统配置',
-                                'system_config',
-                                member.id,
-                                hasPermission(member.id, 'system_config'),
-                                (value) => updateMemberPermission(member.id, 'system_config', value)
-                            )}
-
-                            {renderPermissionSwitch(
-                                '分配会话',
-                                'assign_chats',
-                                member.id,
-                                hasPermission(member.id, 'assign_chats'),
-                                (value) => updateMemberPermission(member.id, 'assign_chats', value)
                             )}
                         </View>
                     )}
@@ -521,28 +472,32 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
         color: '#000000',
     },
-    formContainer: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 8,
-        padding: 16,
-        margin: 8,
-        ...(Platform.OS === 'web' ? {
-            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-        } : {
-            shadowColor: '#000',
-            shadowOffset: {
-                width: 0,
-                height: 2,
-            },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-        }),
-        elevation: 2,
+    modalContainer: {
+        margin: 0,
+        justifyContent: 'flex-end',
     },
-    formTitle: {
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        padding: 20,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    modalTitle: {
         fontSize: 18,
         fontFamily: 'Inter_600SemiBold',
         color: '#000000',
+    },
+    closeButton: {
+        padding: 8,
+    },
+    formGroup: {
         marginBottom: 16,
     },
     inputLabel: {
@@ -558,33 +513,32 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         fontSize: 16,
         fontFamily: 'Inter_400Regular',
-        marginBottom: 16,
     },
-    formActions: {
+    switchContainer: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
-        marginTop: 20,
-    },
-    actionButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        minWidth: 80,
         alignItems: 'center',
     },
-    cancelButton: {
-        backgroundColor: '#F2F2F7',
-        marginRight: 12,
-    },
-    cancelButtonText: {
-        fontSize: 16,
+    switchLabel: {
+        fontSize: 14,
         fontFamily: 'Inter_500Medium',
         color: '#8E8E93',
+        marginRight: 8,
     },
-    saveButton: {
+    switchDescription: {
+        fontSize: 12,
+        fontFamily: 'Inter_400Regular',
+        color: '#8E8E93',
+    },
+    submitButton: {
         backgroundColor: '#5856D6',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
     },
-    saveButtonText: {
+    disabledButton: {
+        backgroundColor: '#F2F2F7',
+    },
+    submitButtonText: {
         fontSize: 16,
         fontFamily: 'Inter_500Medium',
         color: '#FFFFFF',

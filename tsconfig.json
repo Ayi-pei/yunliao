@@ -3,12 +3,24 @@
   "compilerOptions": {
     "strict": true,
     "baseUrl": ".",
+    "types": [
+      "node",
+      "eslint",
+      "eslint-scope",
+      "estree",
+      "gensync"
+    ],
     "paths": {
       "@/*": [
         "./*"
       ]
     },
     "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "downlevelIteration": true,
+    "target": "es2017",
     "typeRoots": [
       "./node_modules/@types",
       "./types"

@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, ViewProps, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 
-interface TouchableViewProps extends ViewProps {
+export interface TouchableViewProps {
     pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+    style?: any;
+    children?: React.ReactNode;
+    [key: string]: any; // 允许传递其他props
 }
 
 /**

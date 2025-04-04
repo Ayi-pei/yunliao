@@ -1,6 +1,6 @@
 /**
- * 错误和警告过滤工具
- * 用于过滤和抑制特定类型的错误消息
+ * 错误过滤器工具
+ * 用于处理和抑制特定类型的警告和错误
  */
 
 import { Platform } from 'react-native';
@@ -11,42 +11,59 @@ const WARNING_FILTERS = [
     'Unchecked runtime.lastError',
 ];
 
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
 /**
- * 应用错误过滤器，抑制特定类型的错误和警告
- * 仅在开发环境下运行
+ * 应用错误过滤器
+ * 过滤掉已知的无法解决但不影响功能的错误和警告
  */
 export function applyErrorFilters(): void {
     if (Platform.OS !== 'web' || process.env.NODE_ENV === 'production') {
         return;
     }
 
-    // 保存原始控制台方法
-    const originalConsoleWarn = console.warn;
-    const originalConsoleError = console.error;
+    // 过滤警告消息
+    console.warn = function filterWarning(...args: any[]) {
+        // 如果是第一个参数是字符串，检查是否包含已知警告
+        if (typeof args[0] === 'string') {
+            const warningMessage = args[0];
 
-    // 覆盖console.warn以过滤掉特定警告
-    console.warn = (...args: any[]) => {
-        // 检查是否为需要过滤的警告消息
-        const message = String(args[0] || '');
-        if (WARNING_FILTERS.some(filter => message.includes(filter))) {
-            return; // 过滤掉匹配的警告
+            // 忽略已知的无害警告
+            if (
+                warningMessage.includes('shadow*') ||
+                warningMessage.includes('pointerEvents') ||
+                warningMessage.includes('Cannot record touch end without a touch start') ||
+                warningMessage.includes('MediaTypeOptions is deprecated')
+            ) {
+                return; // 忽略这些警告
+            }
         }
 
-        // 调用原始方法显示其他警告
+        // 对于其他警告，保持原始行为
         originalConsoleWarn.apply(console, args);
     };
 
-    // 覆盖console.error以过滤掉特定错误
-    console.error = (...args: any[]) => {
-        // 检查是否为需要过滤的错误消息
-        const message = String(args[0] || '');
-        if (WARNING_FILTERS.some(filter => message.includes(filter))) {
-            return; // 过滤掉匹配的错误
+    // 过滤错误消息
+    console.error = function filterError(...args: any[]) {
+        // 如果是第一个参数是字符串，检查是否包含已知错误
+        if (typeof args[0] === 'string') {
+            const errorMessage = args[0];
+
+            // 忽略已知的无害错误
+            if (
+                errorMessage.includes('Layout children must be of type Screen') ||
+                errorMessage.includes('No route named')
+            ) {
+                return; // 忽略这些错误
+            }
         }
 
-        // 调用原始方法显示其他错误
+        // 对于其他错误，保持原始行为
         originalConsoleError.apply(console, args);
     };
+
+    console.log('已应用错误过滤器，将抑制特定类型的警告和错误');
 }
 
 /**

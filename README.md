@@ -36,7 +36,7 @@
 ## 技术栈
 
 - **框架**: Expo SDK 52.0.33
-- **导航**: Expo Router 4.0.17
+- **导航**: Expo Router 4.0.17 + React Navigation Drawer
 - **UI组件**: React Native 核心组件
 - **实时通信**: Socket.io-client 4.8.1
 - **状态管理**: React Context API
@@ -45,8 +45,8 @@
 - **图标**: Lucide React Native
 - **字体**: Google Fonts (Inter 字体族)
 - **日期处理**: date-fns
-- **文件处理**: Expo Document/Image Picker
-- **ID生成**: nanoid
+- **文件处理**: Expo Document/Image Picker, expo-sharing, react-native-view-shot
+- **ID生成**: nanoid (用于生成5位字符的唯一链接)
 
 ## 项目结构
 
@@ -54,10 +54,10 @@
 ├── app/                   # Expo Router路由
 │   ├── _layout.tsx        # 根布局
 │   ├── +not-found.tsx     # 404页面
-│   └── (tabs)/            # 标签导航
-│       ├── _layout.tsx    # 标签配置
+│   └── (drawer)/          # 抽屉导航
+│       ├── _layout.tsx    # 导航配置
 │       ├── chat/          # 聊天功能
-│       ├── agents.tsx     # 客服管理
+│       ├── team.tsx       # 客户管理
 │       └── settings.tsx   # 系统设置
 ├── src/
 │   ├── adapters/          # 适配层
@@ -433,10 +433,11 @@ npx expo start
 - 将问题客户加入黑名单
 - 查看和管理黑名单列表
 
-### 分享链接
-- 生成客服聊天分享链接
-- 跟踪链接访问统计
-- 管理和停用链接
+### 分享链接管理
+- 生成带有5位nanoid的唯一分享链接
+- 实时生成链接对应的二维码
+- 支持复制链接和保存二维码
+- 链接访问统计和管理功能
 
 ## 如何使用客服控制台
 
@@ -478,3 +479,24 @@ WS_URL=ws://localhost:3000/ws
 JWT_SECRET=your_jwt_secret
 MAX_DAILY_AGENTS=30
 ```
+
+## 抽屉导航类型修复
+
+```
+declare module 'expo-router/drawer' {
+  import { ComponentType } from 'react';
+  
+  export const Drawer: {
+    Screen: ComponentType<any>;
+    Navigator: ComponentType<any>;
+    Group: ComponentType<any>;
+  };
+}
+
+## DrawerIconProps类型
+
+interface DrawerIconProps {
+  color: string;
+  size: number;
+  focused?: boolean;
+}

@@ -1,69 +1,94 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Alert } from 'react-native';
+import { useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 // @ts-ignore
-import { useRouter } from 'expo-router';
-import { User, LogOut, Bell, Settings, MessageSquare, Users, Clock, HelpCircle } from 'lucide-react-native';
-import { useAuth } from '@/src/contexts/AuthContext';
+import { COLORS } from '@/src/constants';
 import { useApp } from '@/src/contexts/AppContext';
-import { AgentStatus } from '@/src/types';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { UserStatus } from '@/src/types/auth';
+import { Stack, useRouter } from 'expo-router';
+import { Bell, Check, ChevronDown, ChevronUp, Clock, HelpCircle, MessageSquare, Plus, Settings, Users, X } from 'lucide-react-native';
+
+// 定义客服状态类型
+enum AgentStatus {
+  ONLINE = 'online',
+  AWAY = 'away',
+  BUSY = 'busy',
+  OFFLINE = 'offline'
+}
 
 export default function AgentProfileScreen() {
   const router = useRouter();
   const { agent, logout } = useAuth();
   const { sessions } = useApp();
 
-  const [status, setStatus] = useState<AgentStatus>(agent?.status || AgentStatus.ONLINE);
+  // 将UserStatus转换为AgentStatus
+  const getAgentStatus = (userStatus?: UserStatus): AgentStatus => {
+    if (userStatus === UserStatus.ACTIVE) return AgentStatus.ONLINE;
+    if (userStatus === UserStatus.INACTIVE) return AgentStatus.OFFLINE;
+    return AgentStatus.ONLINE; // 默认
+  };
+
+  const [status, setStatus] = useState<AgentStatus>(getAgentStatus(agent?.status));
   const [enableNotifications, setEnableNotifications] = useState(true);
   const [autoAssign, setAutoAssign] = useState(true);
   const [quickReply, setQuickReply] = useState('');
   const [quickReplies, setQuickReplies] = useState<string[]>([
-    '您好，有什么可以帮助您的？',
-    '感谢您的咨询，稍等片刻，我正在查询相关信息。',
-    '抱歉给您带来不便，我们会尽快解决这个问题。',
-    '请问还有其他问题需要帮助吗？'
+    '您好，有什么可以帮您的？',
+    '请稍等，我正在查询相关信息',
+    '感谢您的耐心等待',
+    '很抱歉给您带来不便'
   ]);
+  const [showStatusOptions, setShowStatusOptions] = useState(false);
 
-  // 处理退出登录
   const handleLogout = async () => {
     try {
-      await logout();
+      Alert.alert(
+        '退出登录',
+        '确定要退出当前账号吗？',
+        [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '确定',
+            onPress: async () => {
+              await logout();
+              router.replace('/');
+            }
+          }
+        ]
+      );
     } catch (error) {
-      console.error('退出登录时出错:', error);
-      Alert.alert('退出错误', '退出登录时发生错误，请重试');
+      console.error('退出登录错误:', error);
     }
   };
 
-  // 添加快捷回复
   const handleAddQuickReply = () => {
     if (!quickReply.trim()) return;
-
     setQuickReplies([...quickReplies, quickReply]);
     setQuickReply('');
   };
 
-  // 删除快捷回复
   const handleRemoveQuickReply = (index: number) => {
-    const updatedReplies = [...quickReplies];
-    updatedReplies.splice(index, 1);
-    setQuickReplies(updatedReplies);
+    setQuickReplies(quickReplies.filter((_, i) => i !== index));
   };
 
-  // 统计数据
-  const activeChats = sessions.filter(s => s.status === 'active' && s.agentId === agent?.id).length;
-  const pendingChats = sessions.filter(s => s.status === 'pending').length;
-  const resolvedChats = sessions.filter(s => s.status === 'resolved' && s.agentId === agent?.id).length;
+  // 切换状态选项显示
+  const toggleStatusOptions = () => {
+    setShowStatusOptions(!showStatusOptions);
+  };
 
   // 获取状态颜色
   const getStatusColor = (agentStatus: AgentStatus) => {
     switch (agentStatus) {
       case AgentStatus.ONLINE:
         return '#34C759'; // 绿色
-      case AgentStatus.BUSY:
+      case AgentStatus.AWAY:
         return '#FF9500'; // 橙色
+      case AgentStatus.BUSY:
+        return '#FF3B30'; // 红色
       case AgentStatus.OFFLINE:
         return '#8E8E93'; // 灰色
       default:
-        return '#8E8E93';
+        return '#34C759';
     }
   };
 
@@ -72,95 +97,106 @@ export default function AgentProfileScreen() {
     switch (agentStatus) {
       case AgentStatus.ONLINE:
         return '在线';
+      case AgentStatus.AWAY:
+        return '离开';
       case AgentStatus.BUSY:
         return '忙碌';
       case AgentStatus.OFFLINE:
         return '离线';
       default:
-        return agentStatus;
+        return '在线';
     }
   };
 
-  // 切换状态
+  // 处理状态变更
   const handleStatusChange = (newStatus: AgentStatus) => {
     setStatus(newStatus);
-    // 在实际应用中，这里应该调用API更新客服状态
+    setShowStatusOptions(false);
   };
+
+  // 统计数据
+  const activeChats = sessions.filter(s => s.status === 'active' && s.agentId === agent?.id).length;
+  const pendingChats = sessions.filter(s => s.status === 'pending').length;
+  const resolvedChats = sessions.filter(s => s.status === 'resolved' && s.agentId === agent?.id).length;
 
   return (
     <ScrollView style={styles.container}>
-      {/* 客服个人信息 */}
-      <View style={styles.profileSection}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <User size={32} color="#FFFFFF" />
-          </View>
-          <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(status) }]} />
-        </View>
+      <Stack.Screen
+        options={{
+          title: '个人信息',
+          headerShown: true,
+        }}
+      />
+
+      <View style={styles.profileCard}>
+        <Image
+          source={
+            agent?.avatar
+              ? { uri: agent.avatar }
+              : require('@/assets/images/default-avatar.png')
+          }
+          style={styles.avatar}
+        />
 
         <View style={styles.profileInfo}>
-          <Text style={styles.name}>{agent?.name || '客服'}</Text>
+          <Text style={styles.name}>{agent?.displayName || '客服'}</Text>
           <Text style={styles.id}>ID: {agent?.id || 'Unknown'}</Text>
           <Text style={styles.status}>状态: {getStatusText(status)}</Text>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <LogOut size={20} color="#FF3B30" />
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => router.push('/agent/profile')}
+        >
+          <Text style={styles.editButtonText}>编辑</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 状态切换 */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>客服状态</Text>
-        <View style={styles.statusButtons}>
-          <TouchableOpacity
-            style={[
-              styles.statusButton,
-              status === AgentStatus.ONLINE && styles.activeStatusButton,
-              { borderColor: getStatusColor(AgentStatus.ONLINE) }
-            ]}
-            onPress={() => handleStatusChange(AgentStatus.ONLINE)}
-          >
-            <Text style={[
-              styles.statusButtonText,
-              status === AgentStatus.ONLINE && { color: getStatusColor(AgentStatus.ONLINE) }
-            ]}>
-              在线
-            </Text>
-          </TouchableOpacity>
+      <View style={styles.statusSelector}>
+        <TouchableOpacity
+          style={styles.statusButton}
+          onPress={toggleStatusOptions}
+        >
+          <View style={styles.statusIndicator}>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: getStatusColor(status) }
+              ]}
+            />
+            <Text style={styles.statusText}>{getStatusText(status)}</Text>
+          </View>
+          {showStatusOptions ? (
+            <ChevronUp size={20} color={COLORS.text} />
+          ) : (
+            <ChevronDown size={20} color={COLORS.text} />
+          )}
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.statusButton,
-              status === AgentStatus.BUSY && styles.activeStatusButton,
-              { borderColor: getStatusColor(AgentStatus.BUSY) }
-            ]}
-            onPress={() => handleStatusChange(AgentStatus.BUSY)}
-          >
-            <Text style={[
-              styles.statusButtonText,
-              status === AgentStatus.BUSY && { color: getStatusColor(AgentStatus.BUSY) }
-            ]}>
-              忙碌
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.statusButton,
-              status === AgentStatus.OFFLINE && styles.activeStatusButton,
-              { borderColor: getStatusColor(AgentStatus.OFFLINE) }
-            ]}
-            onPress={() => handleStatusChange(AgentStatus.OFFLINE)}
-          >
-            <Text style={[
-              styles.statusButtonText,
-              status === AgentStatus.OFFLINE && { color: getStatusColor(AgentStatus.OFFLINE) }
-            ]}>
-              离线
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {showStatusOptions && (
+          <View style={styles.statusOptions}>
+            {Object.values(AgentStatus).map((agentStatus) => (
+              <TouchableOpacity
+                key={agentStatus}
+                style={styles.statusOption}
+                onPress={() => handleStatusChange(agentStatus)}
+              >
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: getStatusColor(agentStatus) }
+                  ]}
+                />
+                <Text style={styles.statusOptionText}>
+                  {getStatusText(agentStatus)}
+                </Text>
+                {status === agentStatus && (
+                  <Check size={16} color={COLORS.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* 会话统计 */}
@@ -242,23 +278,25 @@ export default function AgentProfileScreen() {
             multiline
           />
           <TouchableOpacity
-            style={[styles.addButton, !quickReply.trim() && styles.disabledButton]}
+            style={styles.addButton}
             onPress={handleAddQuickReply}
             disabled={!quickReply.trim()}
           >
-            <Text style={styles.addButtonText}>添加</Text>
+            <Plus size={20} color={COLORS.white} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.quickRepliesList}>
+        <View style={styles.quickReplies}>
           {quickReplies.map((reply, index) => (
             <View key={index} style={styles.quickReplyItem}>
-              <Text style={styles.quickReplyText} numberOfLines={2}>{reply}</Text>
+              <Text style={styles.quickReplyText} numberOfLines={2}>
+                {reply}
+              </Text>
               <TouchableOpacity
                 style={styles.removeButton}
                 onPress={() => handleRemoveQuickReply(index)}
               >
-                <Text style={styles.removeButtonText}>删除</Text>
+                <X size={16} color={COLORS.danger} />
               </TouchableOpacity>
             </View>
           ))}
@@ -270,6 +308,12 @@ export default function AgentProfileScreen() {
         <HelpCircle size={20} color="#007AFF" />
         <Text style={styles.helpButtonText}>帮助与支持</Text>
       </TouchableOpacity>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          当前会话数: {sessions.length}
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -280,7 +324,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
     padding: 16,
   },
-  profileSection: {
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -288,27 +332,11 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 16,
-  },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginRight: 16,
   },
   profileInfo: {
     flex: 1,
@@ -330,13 +358,61 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     color: '#8E8E93',
   },
-  logoutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFEEEE',
-    justifyContent: 'center',
+  editButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E1F0FF',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  statusSelector: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#000000',
+  },
+  statusButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statusOptions: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 8,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  statusOptionText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: '#000000',
+    marginLeft: 8,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -349,25 +425,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: '#000000',
     marginBottom: 16,
-  },
-  statusButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statusButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 8,
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  activeStatusButton: {
-    backgroundColor: '#F5F5F5',
-  },
-  statusButtonText: {
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -443,15 +500,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-  disabledButton: {
-    backgroundColor: '#B0B0B0',
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
-  quickRepliesList: {
+  quickReplies: {
     marginTop: 8,
   },
   quickReplyItem: {
@@ -471,11 +520,6 @@ const styles = StyleSheet.create({
   removeButton: {
     marginLeft: 8,
   },
-  removeButtonText: {
-    color: '#FF3B30',
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
   helpButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -487,5 +531,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     color: '#007AFF',
     marginLeft: 8,
+  },
+  footer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: '#8E8E93',
   },
 }); 

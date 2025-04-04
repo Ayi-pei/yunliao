@@ -122,4 +122,31 @@ declare module '*.svg' {
   const content: React.FC<SvgProps>;
   export default content;
 }
+
+// QR码和文件处理相关类型
+declare module 'react-native-qrcode-svg' {
+  import React from 'react';
+  
+  export interface QRCodeProps {
+    value: string;
+    size?: number;
+    color?: string;
+    backgroundColor?: string;
+    // 其他属性...
+  }
+  
+  const QRCode: React.FC<QRCodeProps>;
+  export default QRCode;
+}
+
+declare module 'react-native-view-shot' {
+  export function captureRef(
+    viewRef: React.RefObject<any>,
+    options?: {
+      format?: 'png' | 'jpg' | 'webm' | 'raw',
+      quality?: number,
+      // 其他选项...
+    }
+  ): Promise<string>;
+}
 ``` 

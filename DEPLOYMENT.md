@@ -305,3 +305,26 @@ npx expo install
         <LoadingIndicator message="加载更多消息..." />
       ) : null}
       ```
+
+## 安装抽屉导航相关依赖
+npm install @react-navigation/drawer react-native-gesture-handler react-native-reanimated --legacy-peer-deps
+
+# 从底部标签切换到侧边抽屉导航
+# 确保在 app/_layout.tsx 中引入了必要的依赖
+import 'react-native-gesture-handler';
+
+管理控制台现在可通过左侧抽屉导航栏直接访问，主要功能区域包括：
+- 仪表盘：系统概览和关键指标
+- 用户管理：管理客服账户和权限
+- 密钥管理：管理和轮换系统密钥
+- 分享链接管理：生成和管理客服分享链接
+- 系统设置：配置全局系统参数
+
+# 安装核心依赖
+npm install
+
+# 安装抽屉导航相关依赖
+npm install @react-navigation/drawer react-native-gesture-handler react-native-reanimated --legacy-peer-deps
+
+# 对于部分依赖冲突，使用--legacy-peer-deps解决
+npm install nanoid react-native-qrcode-svg expo-sharing expo-file-system react-native-view-shot --legacy-peer-deps

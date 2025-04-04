@@ -16,7 +16,7 @@ export const PREFIXES = {
 } as const;
 
 // 预设的30个密钥
-export const PRESET_KEYS: string[] = Array.from({ length: 30 }, () => 
+export const PRESET_KEYS: string[] = Array.from({ length: 30 }, () =>
   `${PREFIXES.KEY}${nanoid(16)}`
 );
 
@@ -66,6 +66,31 @@ export enum ConnectionStatus {
   CONNECTED = 'connected',
   DISCONNECTED = 'disconnected',
   CONNECTING = 'connecting',
+}
+
+// 连接质量
+export enum ConnectionQuality {
+  UNKNOWN = 'unknown',
+  POOR = 'poor',
+  FAIR = 'fair',
+  GOOD = 'good',
+  EXCELLENT = 'excellent'
+}
+
+// 同步冲突解决策略
+export enum SyncConflictStrategy {
+  SERVER_WINS = 'server_wins',
+  LOCAL_WINS = 'local_wins',
+  NEWEST_WINS = 'newest_wins',
+  MERGE = 'merge'
+}
+
+// 消息加密状态
+export interface MessageEncryption {
+  isEncrypted: boolean;
+  encryptionType?: 'aes' | 'e2e';
+  publicKey?: string;
+  encryptedSessionKey?: string;
 }
 
 // 客服数据
@@ -127,10 +152,11 @@ export interface ChatSession {
 
 // WebSocket消息接口
 export interface WSMessage {
-  type: 'message' | 'notification' | 'status' | 'ping' | 'pong';
-  payload?: any;
-  timestamp?: number;
-  sender?: string;
+  type: 'message' | 'ping' | 'pong' | 'status' | 'error';
+  payload?: Message;
+  timestamp: number;
+  retryCount?: number;
+  metadata?: Record<string, any>;
 }
 
 // 认证数据

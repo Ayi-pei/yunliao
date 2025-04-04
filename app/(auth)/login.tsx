@@ -1,26 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 // @ts-ignore
 import { useRouter } from 'expo-router';
 import { Lock, UserCheck, Key } from 'lucide-react-native';
 import { useAuth } from '@/src/contexts/AuthContext';
 
+interface LoginErrors {
+  agentId: string;
+  agentName: string;
+  apiKey: string;
+  general?: string;
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const { login, isLoading } = useAuth();
-  
+
   const [agentId, setAgentId] = useState('');
   const [agentName, setAgentName] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [errors, setErrors] = useState({
+  const [errors, setErrors] = useState<LoginErrors>({
     agentId: '',
     agentName: '',
     apiKey: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const validate = () => {
+  // 使用useMemo缓存表单是否有效的状态，避免重复计算
+  const isFormValid = useMemo(() => {
+    return !!agentId.trim() && !!agentName.trim() && apiKey.trim().length >= 10;
+  }, [agentId, agentName, apiKey]);
+
+  // 使用useCallback优化表单验证函数
+  const validate = useCallback(() => {
     let isValid = true;
-    const newErrors = {
+    const newErrors: LoginErrors = {
       agentId: '',
       agentName: '',
       apiKey: ''
@@ -46,28 +60,67 @@ export default function LoginScreen() {
 
     setErrors(newErrors);
     return isValid;
-  };
+  }, [agentId, agentName, apiKey]);
 
   const handleLogin = async () => {
     if (!validate()) return;
 
+    setIsSubmitting(true);
     try {
       const success = await login(agentId, agentName, apiKey);
-      
+
       if (success) {
-        router.replace('/(tabs)');
+        // 使用try-catch包装路由导航，防止路由错误
+        try {
+          router.replace('/(drawer)');
+        } catch (navError) {
+          console.error('导航到主屏幕时出错:', navError);
+          // 如果导航失败，尝试其他备选路由
+          try {
+            router.replace('/');
+          } catch (fallbackError) {
+            console.error('备选导航也失败:', fallbackError);
+            Alert.alert('导航错误', '无法导航到主界面，请重启应用');
+          }
+        }
       } else {
+        setErrors(prev => ({
+          ...prev,
+          general: '登录失败，请检查您的凭据是否正确'
+        }));
         Alert.alert('登录失败', '无效的凭据，请检查您的客服ID和API密钥');
       }
     } catch (error) {
-      Alert.alert('登录错误', '登录过程中发生错误，请稍后重试');
       console.error('登录错误:', error);
+
+      // 根据错误类型提供更具体的错误消息
+      let errorMessage = '登录过程中发生错误，请稍后重试';
+
+      if (error instanceof Error) {
+        if (error.message.includes('network')) {
+          errorMessage = '网络连接错误，请检查您的网络连接';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = '服务器响应超时，请稍后再试';
+        }
+      }
+
+      setErrors(prev => ({
+        ...prev,
+        general: errorMessage
+      }));
+
+      Alert.alert('登录错误', errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // 使用isLoading和isSubmitting确定加载状态
+  const isButtonDisabled = isLoading || isSubmitting || !isFormValid;
+
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
@@ -76,6 +129,12 @@ export default function LoginScreen() {
           <Text style={styles.headerTitle}>客服登录</Text>
           <Text style={styles.headerSubtitle}>请使用您的客服ID和API密钥登录</Text>
         </View>
+
+        {errors.general ? (
+          <View style={styles.generalErrorContainer}>
+            <Text style={styles.generalErrorText}>{errors.general}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.inputContainer}>
           <UserCheck size={20} color="#007AFF" style={styles.inputIcon} />
@@ -86,6 +145,7 @@ export default function LoginScreen() {
             onChangeText={setAgentId}
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!isSubmitting}
           />
         </View>
         {errors.agentId ? <Text style={styles.errorText}>{errors.agentId}</Text> : null}
@@ -98,6 +158,7 @@ export default function LoginScreen() {
             value={agentName}
             onChangeText={setAgentName}
             autoCorrect={false}
+            editable={!isSubmitting}
           />
         </View>
         {errors.agentName ? <Text style={styles.errorText}>{errors.agentName}</Text> : null}
@@ -112,16 +173,17 @@ export default function LoginScreen() {
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!isSubmitting}
           />
         </View>
         {errors.apiKey ? <Text style={styles.errorText}>{errors.apiKey}</Text> : null}
 
         <TouchableOpacity
-          style={[styles.loginButton, (!agentId || !agentName || !apiKey) && styles.loginButtonDisabled]}
+          style={[styles.loginButton, isButtonDisabled && styles.loginButtonDisabled]}
           onPress={handleLogin}
-          disabled={isLoading || !agentId || !agentName || !apiKey}
+          disabled={isButtonDisabled}
         >
-          {isLoading ? (
+          {isLoading || isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <Text style={styles.loginButtonText}>登录</Text>
@@ -166,6 +228,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
     color: '#8E8E93',
+    textAlign: 'center',
+  },
+  generalErrorContainer: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  generalErrorText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#FF3B30',
     textAlign: 'center',
   },
   inputContainer: {

@@ -1,58 +1,100 @@
-import React, { ReactNode, useEffect } from 'react';
-// @ts-ignore
-import { useRouter, useSegments } from 'expo-router';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import React, { ReactNode } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { Permission } from '../../types/auth';
+import { COLORS } from '../../constants';
 
 interface AuthGuardProps {
   children: ReactNode;
+  requiredPermissions?: Permission[];
+  fallback?: ReactNode;
+  requireAdmin?: boolean;
+  requireSupervisor?: boolean;
 }
 
 /**
- * 身份验证守卫组件
- * 根据用户认证状态重定向到适当的页面
+ * 认证守卫组件
+ * 用于保护需要认证的组件
  */
-const AuthGuard = ({ children }: AuthGuardProps) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
+const AuthGuard: React.FC<AuthGuardProps> = ({
+  children,
+  requiredPermissions = [],
+  fallback,
+  requireAdmin = false,
+  requireSupervisor = false
+}) => {
+  const { isLoading, isAuthenticated, user, hasPermission, isAdmin, isSupervisor } = useAuth();
 
-  useEffect(() => {
-    // 如果认证加载中，不执行任何操作
-    if (isLoading) return;
-
-    // 获取当前路径的第一个段，判断是否在认证路由内
-    const inAuthGroup = segments[0] === '(auth)';
-
-    // 根据认证状态和当前路径决定重定向
-    if (!isAuthenticated && !inAuthGroup) {
-      // 用户未认证且不在认证路由内，重定向到登录页面
-      router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      // 用户已认证但在认证路由内，重定向到主页
-      router.replace('/(tabs)');
-    }
-  }, [isAuthenticated, isLoading, segments, router]);
-
-  // 如果认证状态正在加载，显示加载指示器
+  // 如果正在加载认证状态，显示加载指示器
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.text}>正在加载...</Text>
       </View>
     );
   }
 
-  // 渲染子组件
+  // 如果未认证，显示fallback或默认未认证提示
+  if (!isAuthenticated) {
+    if (fallback) {
+      return <>{fallback}</>;
+    }
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>请先登录</Text>
+      </View>
+    );
+  }
+
+  // 检查是否需要管理员权限
+  if (requireAdmin && !isAdmin) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>需要管理员权限</Text>
+      </View>
+    );
+  }
+
+  // 检查是否需要主管权限
+  if (requireSupervisor && !isSupervisor) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>需要主管权限</Text>
+      </View>
+    );
+  }
+
+  // 检查是否有所需的所有权限
+  if (requiredPermissions.length > 0) {
+    const hasAllPermissions = requiredPermissions.every(permission =>
+      hasPermission(permission)
+    );
+
+    if (!hasAllPermissions) {
+      return (
+        <View style={styles.container}>
+          <Text style={styles.text}>权限不足</Text>
+        </View>
+      );
+    }
+  }
+
+  // 通过所有检查，渲染子组件
   return <>{children}</>;
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: {
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    padding: 20,
+  },
+  text: {
+    marginTop: 10,
+    fontSize: 16,
+    color: COLORS.text,
   },
 });
 
